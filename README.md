@@ -163,6 +163,18 @@ For native builds, install the [prerequisite](#prerequisites) *System Packages*.
 	cmake .. -DTRT_LIB_DIR=$TRT_RELEASE/lib -DTRT_OUT_DIR=`pwd`/out
 	make -j$(nproc)
 	```
+	**Example: Linux (x86-64) build with cuda-10.2 on Tesla V100**
+	```bash
+	cd $TRT_SOURCE
+	mkdir -p build && cd build
+	cmake .. \
+		-DTRT_LIB_DIR=$TRT_RELEASE/lib \
+		-DGPU_ARCHS="70" \
+		-DCUDA_VERSION=10.2 \
+		-DTRT_OUT_DIR=`pwd`/out
+	make -j$(nproc)
+	# make install
+	```
     **Example: Native build on Jetson (arm64) with cuda-10.2**
     ```bash
     cd $TRT_SOURCE
