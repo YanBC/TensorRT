@@ -11,6 +11,11 @@ from math import floor
 from polygraphy import cuda
 
 
+_ENGINE_DIR = "anything/engine"
+_HF_VAE_MODEL_NAME = "/yanbc/workspace/codes/img2img/src_models/anything/vae/"
+_HF_TOKENIZER_NAME = "/yanbc/workspace/codes/img2img/src_models/anything/tokenizer/"
+
+
 def load_img(path: str) -> Image:
     _MAX_SIZE = 512
     image = Image.open(path).convert("RGB")
@@ -42,7 +47,7 @@ class Img2Img:
         guidance_scale = 7.5
         device = "cuda"
         max_batch_size = 16
-        engine_dir = "engine"
+        engine_dir = _ENGINE_DIR
         batch_size = 1
         image_height = 512
         image_width = 512
@@ -59,9 +64,8 @@ class Img2Img:
             engines[model_name].activate()
             engines[model_name].allocate_buffers(shape_dict=obj.get_shape_dict(batch_size, image_height, image_width), device=device)
 
-        autoencoder = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4",
-            subfolder="vae").to(device)
-        tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
+        autoencoder = AutoencoderKL.from_pretrained(_HF_VAE_MODEL_NAME).to(device)
+        tokenizer = CLIPTokenizer.from_pretrained(_HF_TOKENIZER_NAME)
         scheduler = PNDMScheduler(
             beta_start=0.00085,
             beta_end=0.012,
