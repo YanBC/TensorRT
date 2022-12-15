@@ -24,9 +24,6 @@ _GUIDANCE_SCALE = 12
 _DENOISING_STEPS = 50
 _DEVICE_ID = 0
 
-torch.manual_seed(_SEED)
-torch.cuda.manual_seed(_SEED)
-
 
 def load_img(path: str) -> Image:
     image = Image.open(path).convert("RGB")
@@ -61,7 +58,9 @@ class Img2Img:
             engines[model_name] = engine
             engines[model_name].activate()
 
-        autoencoder = AutoencoderKL.from_pretrained(_HF_VAE_MODEL_NAME).to(device)
+        autoencoder = AutoencoderKL.from_pretrained(_HF_VAE_MODEL_NAME)
+        autoencoder.decoder = None
+        autoencoder.to(device=device, dtype=torch.float32)
         tokenizer = CLIPTokenizer.from_pretrained(_HF_TOKENIZER_NAME)
         scheduler = PNDMScheduler(
             beta_start=0.00085,
@@ -159,7 +158,6 @@ class Img2Img:
 
     def _prepare_latents(self, init_image: torch.Tensor, timestep, device, generator=None):
         init_image = init_image.to(device=device, dtype=torch.float32)
-        self.autoencoder.encoder = self.autoencoder.encoder.to(torch.float32)
         init_latents_dist = self.autoencoder.encode(init_image, return_dict=False)[0]
         init_latents = init_latents_dist.sample(generator=generator)
         init_latents = 0.18215 * init_latents
@@ -176,7 +174,7 @@ class Img2Img:
         images = self.runEngine('vae', {"latent": sample_inp})['images']
         return images
 
-    def infer(self, prompt: str, n_prompt: str, image: Image):
+    def infer(self, prompt: str, n_prompt: str, image: Image, seed: int):
         # Engine allocate buffers
         image_w, image_h = image.size
         for model_name, obj in self.models.items():
@@ -193,11 +191,15 @@ class Img2Img:
         timesteps = self.get_timesteps(self.denoising_steps, self.strength)
         latent_timestep = timesteps[:1]
 
+        # seed generator
+        prng = torch.cuda.manual_seed(seed)
+
         # Prepare latent variables
         latents = self._prepare_latents(
                 init_image=init_image,
                 timestep=latent_timestep,
-                device=self.device
+                device=self.device,
+                generator=prng,
         ).to(torch.float32)
 
         # Denoising loop
@@ -265,4 +267,5 @@ if __name__ == "__main__":
             engine_dir=_ENGINE_DIR,
             batch_size=_BATCHSIZE
     )
-    img2img.infer(prompt, _N_PROMPT, image)
+    img2img.infer(prompt, _N_PROMPT, image, seed=_SEED)
+    # img2img.infer(prompt, _N_PROMPT, image, seed=_SEED)
