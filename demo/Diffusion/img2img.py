@@ -12,13 +12,17 @@ from polygraphy import cuda
 
 
 _BATCHSIZE = 1
-_MAX_SIZE = 512
+_MAX_SIZE = 1024
 _ENGINE_DIR = "anything/engine"
 _HF_VAE_MODEL_NAME = "/yanbc/workspace/codes/img2img/src_models/anything-fp32/vae/"
 _HF_TOKENIZER_NAME = "/yanbc/workspace/codes/img2img/src_models/anything-fp32/tokenizer/"
 _HF_CLIPTEXT_NAME = "/yanbc/workspace/codes/img2img/src_models/anything-fp32/text_encoder/"
 _N_PROMPT = "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, bad anatomy, bad hands, text,error, missing fngers,extra digt ,fewer digits,cropped,worst quality ,low quality,normal quality, jpeg artifacts,signature,watermark, username, blurry, bad feet,NSFW, lowres,bad anatomy,text, error,nsfw,nsfw"
 _SEED = 1631445808
+# if _MAX_SIZE <= 512:
+#     _STRENGTH = 0.4
+# else:
+#     _STRENGTH = 0.6
 _STRENGTH = 0.4
 _GUIDANCE_SCALE = 12
 
@@ -252,19 +256,20 @@ if __name__ == "__main__":
     # args = get_args()
     # image_path = args.image
 
-    # image_path = "/yanbc/workspace/images/2017.jpeg"
-    # # prompt = "mikasa in the dark, blood moon, twilight, jumping between buildings, immensely detailed"
-    # # image_path = "output/sd-fp16-c-1-1262.png"
-    # # prompt = "cute anime girl, highly detailed"
-    # # image_path = "./input_image.jpg"
-    # # prompt = "masterpiece, best quality, Anime style, a woman in a skirt and jacket posing for a picture with her hair blowing in the wind and smiling,"
-    # prompt = "masterpiece, best quality, Anime style, a woman in a skirt and jacket posing for a picture with her hair blowing in the wind and smiling"
+    image_path = "./feifei.jpg"
 
-    # image_path = "/yanbc/workspace/images/25.jpg"
-    # image_path = "./resized.jpg"
-    # prompt = "masterpiece, best quality, Anime style, a woman holding a gun in front of a muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy mug"
-    image_path = "./resized_mimi.jpg"
-    prompt = "masterpiece, best quality, Anime style, a woman in a black dress with a flowered top on her head and a ring on her finger"
+    if image_path == "./2017.jpg":
+        prompt = "masterpiece, best quality, Anime style, a woman in a skirt and jacket posing for a picture with her hair blowing in the wind and smiling,"
+    elif image_path == "./mimi.jpg":
+        prompt = "masterpiece, best quality, Anime style, a woman in a black dress with a flowered top on her head and a ring on her finger"
+    elif image_path == "./25.jpg":
+        prompt = "masterpiece, best quality, Anime style, a woman holding a gun in front of a muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy muggy mug"
+    elif image_path == "./4.jpg":
+        prompt = "masterpiece, best quality, Anime style, a woman in a pink sweater holding her hands out to her chest and looking at the camera with a serious look on her face, "
+    elif image_path == "./feifei.jpg":
+        prompt = "masterpiece, best quality, Anime style, a woman in a red dress sitting on a hammock with long hair and a red dress on, "
+    else:
+        raise RuntimeError()
 
     image = load_img(image_path)
 
