@@ -80,7 +80,7 @@ class Img2Img:
             skip_prk_steps=True,
             steps_offset=1,
         )
-        text_encoder = CLIPTextModel.from_pretrained(_HF_CLIPTEXT_NAME).to(device)
+        text_encoder = CLIPTextModel.from_pretrained(_HF_CLIPTEXT_NAME).to(device=device, dtype=torch.float16)
 
         self.guidance_scale = guidance_scale
         self.device = device
@@ -140,16 +140,13 @@ class Img2Img:
         pt_text_embeddings = torch.cat([uncond_embeddings, text_embeddings]).to(dtype=torch.float16)
         return pt_text_embeddings
 
-    def _encode_prompt(self, prompt: str) -> torch.Tensor:
+    def _encode_prompt(self, prompt: str, n_prompt: str) -> torch.Tensor:
         text_input_ids = self.tokenizer(
             prompt,
             padding="max_length",
             max_length=self.tokenizer.model_max_length,
             return_tensors="pt",
-        ).input_ids.type(torch.int32).to(self.device)
-        text_embeddings = self.text_encoder(text_input_ids)[0]
-
-        n_prompt = _N_PROMPT
+        ).input_ids.type(torch.int32)
         max_length = text_input_ids.shape[-1]
         uncond_input_ids = self.tokenizer(
             n_prompt,
@@ -157,10 +154,10 @@ class Img2Img:
             max_length=max_length,
             truncation=True,
             return_tensors="pt",
-        ).input_ids.type(torch.int32).to(self.device)
-        uncond_embeddings = self.text_encoder(uncond_input_ids)[0]
+        ).input_ids.type(torch.int32)
 
-        pt_text_embeddings = torch.cat([uncond_embeddings, text_embeddings]).to(dtype=torch.float16)
+        pt_input_ids = torch.cat([uncond_input_ids, text_input_ids]).to(self.device)
+        pt_text_embeddings = self.text_encoder(pt_input_ids)[0]
         return pt_text_embeddings
 
     def _image_preprocess(self, image: Image) -> torch.Tensor:
@@ -192,14 +189,14 @@ class Img2Img:
         images = self.runEngine('vae', {"latent": sample_inp})['images']
         return images
 
-    def infer(self, prompt: str, image: Image):
+    def infer(self, prompt: str, n_prompt: str, image: Image):
         # Engine allocate buffers
         image_w, image_h = image.size
         for model_name, obj in self.models.items():
             self.engines[model_name].allocate_buffers(shape_dict=obj.get_shape_dict(_BATCHSIZE, image_h, image_w), device=self.device)
 
         # Encode input prompt
-        text_embeddings = self._encode_prompt(prompt)
+        text_embeddings = self._encode_prompt(prompt, n_prompt)
 
         # Preprocess image
         init_image = self._image_preprocess(image)
@@ -274,4 +271,4 @@ if __name__ == "__main__":
     image = load_img(image_path)
 
     img2img = Img2Img()
-    img2img.infer(prompt, image)
+    img2img.infer(prompt, _N_PROMPT, image)
