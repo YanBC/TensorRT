@@ -19,12 +19,10 @@ _HF_TOKENIZER_NAME = "/yanbc/workspace/codes/img2img/src_models/anything-fp32/to
 _HF_CLIPTEXT_NAME = "/yanbc/workspace/codes/img2img/src_models/anything-fp32/text_encoder/"
 _N_PROMPT = "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, bad anatomy, bad hands, text,error, missing fngers,extra digt ,fewer digits,cropped,worst quality ,low quality,normal quality, jpeg artifacts,signature,watermark, username, blurry, bad feet,NSFW, lowres,bad anatomy,text, error,nsfw,nsfw"
 _SEED = 1631445808
-# if _MAX_SIZE <= 512:
-#     _STRENGTH = 0.4
-# else:
-#     _STRENGTH = 0.6
 _STRENGTH = 0.4
 _GUIDANCE_SCALE = 12
+_DENOISING_STEPS = 50
+_DEVICE_ID = 0
 
 torch.manual_seed(_SEED)
 torch.cuda.manual_seed(_SEED)
@@ -49,19 +47,13 @@ def get_args():
 
 
 class Img2Img:
-    def __init__(self) -> None:
-        strength = _STRENGTH
-        denoising_steps = 50
-        guidance_scale = _GUIDANCE_SCALE
-        device = "cuda"
-        max_batch_size = _BATCHSIZE
-        engine_dir = _ENGINE_DIR
-        batch_size = 1
+    def __init__(self, strength: float, denoising_steps: int, guidance_scale: float, device_id: int, engine_dir: str, batch_size: int) -> None:
+        device = f"cuda:{device_id}"
 
         models = {
-            # 'clip': CLIP(hf_token="", device=device, max_batch_size=max_batch_size),
-            'unet_fp16': UNet(hf_token="", fp16=True, device=device, max_batch_size=max_batch_size),
-            'vae': VAE(hf_token="", device=device, max_batch_size=max_batch_size)
+            # 'clip': CLIP(hf_token="", device=device, max_batch_size=batch_size),
+            'unet_fp16': UNet(hf_token="", fp16=True, device=device, max_batch_size=batch_size),
+            'vae': VAE(hf_token="", device=device, max_batch_size=batch_size)
         }
         engines = {}
         for model_name, obj in models.items():
@@ -93,7 +85,6 @@ class Img2Img:
         self.strength = strength
         self.stream = cuda.Stream()
         self.batch_size = batch_size
-        self.denoising_fp16 = True
         self.text_encoder = text_encoder
 
     def runEngine(self, model_name, feed_dict):
@@ -161,9 +152,6 @@ class Img2Img:
         return pt_text_embeddings
 
     def _image_preprocess(self, image: Image) -> torch.Tensor:
-        w, h = image.size
-        w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
-        image = image.resize((w, h), resample=Image.LANCZOS)
         image = np.array(image).astype(np.float32) / 255.0
         image = image[None].transpose(0, 3, 1, 2)
         image = torch.from_numpy(image)
@@ -175,7 +163,6 @@ class Img2Img:
         init_latents_dist = self.autoencoder.encode(init_image, return_dict=False)[0]
         init_latents = init_latents_dist.sample(generator=generator)
         init_latents = 0.18215 * init_latents
-        # init_latents = torch.cat([init_latents] * 2, dim=0)
 
         noise = torch.randn(init_latents.shape, generator=generator, device=device, dtype=torch.float32)
         init_latents = self.scheduler.add_noise(init_latents, noise, timestep)
@@ -245,7 +232,7 @@ class Img2Img:
         images = self._decode_latents(latents)
 
         # Save image
-        image_name_prefix = 'sd-'+('fp16' if self.denoising_fp16 else 'fp32')+''.join(set(['-'+prompt[i].replace(' ','_')[:10] for i in range(1)]))+'-'
+        image_name_prefix = 'sd-'+''.join(set(['-'+prompt[i].replace(' ','_')[:10] for i in range(1)]))+'-'
         save_image(images, "output", image_name_prefix)
 
 
@@ -270,5 +257,12 @@ if __name__ == "__main__":
 
     image = load_img(image_path)
 
-    img2img = Img2Img()
+    img2img = Img2Img(
+            strength=_STRENGTH,
+            denoising_steps=_DENOISING_STEPS,
+            guidance_scale=_GUIDANCE_SCALE,
+            device_id=_DEVICE_ID,
+            engine_dir=_ENGINE_DIR,
+            batch_size=_BATCHSIZE
+    )
     img2img.infer(prompt, _N_PROMPT, image)
