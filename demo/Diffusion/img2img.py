@@ -9,6 +9,7 @@ from PIL import Image
 import torch
 from math import floor
 from polygraphy import cuda
+from blip.blip import InterrogateModels
 
 
 _BATCHSIZE = 1
@@ -18,7 +19,9 @@ _HF_VAE_MODEL_NAME = "/yanbc/workspace/codes/img2img/src_models/anything-fp32/va
 _HF_TOKENIZER_NAME = "/yanbc/workspace/codes/img2img/src_models/anything-fp32/tokenizer/"
 _HF_CLIPTEXT_NAME = "/yanbc/workspace/codes/img2img/src_models/anything-fp32/text_encoder/"
 _N_PROMPT = "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, bad anatomy, bad hands, text,error, missing fngers,extra digt ,fewer digits,cropped,worst quality ,low quality,normal quality, jpeg artifacts,signature,watermark, username, blurry, bad feet,NSFW, lowres,bad anatomy,text, error,nsfw,nsfw"
-_SEED = 1631445808
+_BLIP_MODEL_PATH = "/yanbc/workspace/codes/TensorRT/demo/Diffusion/blip/model_base_caption_capfilt_large.pth"
+_BLIP_CONFIG_PATH = "/yanbc/workspace/codes/TensorRT/demo/Diffusion/blip/med_config.json"
+_SEED = 45
 _STRENGTH = 0.4
 _GUIDANCE_SCALE = 12
 _DENOISING_STEPS = 50
@@ -71,7 +74,13 @@ class Img2Img:
             skip_prk_steps=True,
             steps_offset=1,
         )
-        text_encoder = CLIPTextModel.from_pretrained(_HF_CLIPTEXT_NAME).to(device=device, dtype=torch.float16)
+        text_encoder = CLIPTextModel.from_pretrained(
+            _HF_CLIPTEXT_NAME).to(device=device, dtype=torch.float16)
+        blip = InterrogateModels(
+            blip_model_url=_BLIP_MODEL_PATH,
+            med_config=_BLIP_CONFIG_PATH,
+            device=device
+        )
 
         self.guidance_scale = guidance_scale
         self.device = device
@@ -85,6 +94,7 @@ class Img2Img:
         self.stream = cuda.Stream()
         self.batch_size = batch_size
         self.text_encoder = text_encoder
+        self.blip = blip
 
     def runEngine(self, model_name, feed_dict):
         engine = self.engines[model_name]
@@ -175,12 +185,16 @@ class Img2Img:
         return images
 
     def infer(self, prompt: str, n_prompt: str, image: Image, seed: int):
+        # Image caption
+        caption = self.blip.interrogate(image)[0]
+
         # Engine allocate buffers
         image_w, image_h = image.size
         for model_name, obj in self.models.items():
             self.engines[model_name].allocate_buffers(shape_dict=obj.get_shape_dict(_BATCHSIZE, image_h, image_w), device=self.device)
 
         # Encode input prompt
+        prompt = prompt + caption
         text_embeddings = self._encode_prompt(prompt, n_prompt)
 
         # Preprocess image
@@ -257,7 +271,10 @@ if __name__ == "__main__":
     else:
         raise RuntimeError()
 
-    image = load_img(image_path)
+    image_paths = ["./2017.jpg","./mimi.jpg","./25.jpg","./4.jpg","./feifei.jpg"]
+
+    prompt = "masterpiece, best quality, Anime style"
+
 
     img2img = Img2Img(
             strength=_STRENGTH,
@@ -267,5 +284,6 @@ if __name__ == "__main__":
             engine_dir=_ENGINE_DIR,
             batch_size=_BATCHSIZE
     )
-    img2img.infer(prompt, _N_PROMPT, image, seed=_SEED)
-    # img2img.infer(prompt, _N_PROMPT, image, seed=_SEED)
+    for image_path in image_paths:
+        image = load_img(image_path)
+        img2img.infer(prompt, _N_PROMPT, image, seed=_SEED)
